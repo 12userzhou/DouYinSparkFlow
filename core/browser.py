@@ -18,15 +18,36 @@ SYSTEM_CHROMIUM_CANDIDATES = [
 ]
 
 
+def _is_wrapper_script(path):
+    """判断一个文件是不是 wrapper 脚本（非真实 ELF 二进制）。
+    Ubuntu 的 /usr/bin/chromium-browser 在没装 snap 时是个 shell 脚本，
+    会直接报错退出，不能用。"""
+    if not path or not os.path.isfile(path):
+        return False
+    try:
+        with open(path, "rb") as f:
+            magic = f.read(4)
+        # ELF 二进制以 \x7fELF 开头；脚本以 #! 开头
+        if magic == b"\x7fELF":
+            return False  # 真实二进制
+        return True  # 其他都当脚本处理
+    except Exception:
+        return False
+
+
 def find_system_chromium():
     """在常见路径里找系统安装的 chromium 可执行文件"""
     for path in SYSTEM_CHROMIUM_CANDIDATES:
         if os.path.isfile(path) and os.access(path, os.X_OK):
+            if _is_wrapper_script(path):
+                # 是 wrapper 脚本（如 Ubuntu 的 chromium-browser），
+                # 跳过，用 Playwright 自带的更可靠
+                continue
             return path
-    # PATH 里找
+    # PATH 里找（也要跳过 wrapper 脚本）
     for name in ["chromium-browser", "chromium", "google-chrome"]:
         found = shutil.which(name)
-        if found:
+        if found and not _is_wrapper_script(found):
             return found
     # 扫 snap 版本目录（current 可能不存在，找具体版本号目录）
     import glob

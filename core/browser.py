@@ -1,10 +1,33 @@
 import os, sys
+import shutil
 import subprocess
 import traceback
 from playwright.sync_api import sync_playwright
 from utils.config import DEBUG, get_environment, Environment
 
 PLAYWRIGHT_BROWSERS_PATH = "../chrome"
+
+# arm64/无网络环境下优先用系统 chromium
+SYSTEM_CHROMIUM_CANDIDATES = [
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/usr/bin/google-chrome",
+    "/snap/bin/chromium",
+]
+
+
+def find_system_chromium():
+    """在常见路径里找系统安装的 chromium 可执行文件"""
+    for path in SYSTEM_CHROMIUM_CANDIDATES:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    # PATH 里找
+    for name in ["chromium-browser", "chromium", "google-chrome"]:
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
 
 def install_browser():
     """
@@ -37,10 +60,25 @@ def get_browser():
             os.path.join(os.path.dirname(sys.executable), PLAYWRIGHT_BROWSERS_PATH)
         )
 
+    # 优先用系统 chromium（arm64 等无 Playwright 预编译浏览器的环境）
+    system_chromium = find_system_chromium()
+    launch_kwargs = {"headless": headless}
+    if system_chromium:
+        launch_kwargs["executable_path"] = system_chromium
+        print(f"[browser] 使用系统 chromium: {system_chromium}")
+        # arm64 环境下必须加这些参数，否则 chromium 启动崩溃
+        launch_kwargs["args"] = [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--single-process",
+        ]
+
     try:
         # 启动浏览器
-        playwright = sync_playwright().start() 
-        browser = playwright.chromium.launch(headless=headless)
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch(**launch_kwargs)
         return playwright, browser
     except Exception as e:
         # 捕获浏览器启动错误

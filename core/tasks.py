@@ -23,18 +23,31 @@ def handle_response(response: Response):
     global userIDDict
     # 精准匹配目标接口 URL
     if "aweme/v1/creator/im/user_detail/" in response.url:
-        # print(f"URL: {response.url}")
-        # print(f"状态码: {response.status}")
         try:
             # 获取接口返回的 JSON 数据（就是你在 Network 里看到的内容）
             json_data = response.json()
-            # print("\n📦 响应 JSON 数据：")
-            # print(json.dumps(json_data, indent=4, ensure_ascii=False))
+            logger.info(
+                f"监听到 user_detail 接口响应，user_list 共 {len(json_data.get('user_list', []))} 条"
+            )
             for item in json_data.get("user_list", []):
-                short_id = item.get("user", {}).get("ShortId")
-                nickname = item.get("user", {}).get("nickname")
+                user = item.get("user", {}) or {}
+                # 兼容大小写：接口可能返回 short_id / ShortId
+                short_id = user.get("short_id") or user.get("ShortId") or ""
+                # 抖音号（unique_id）可含字母/点，如 好友抖音号A
+                unique_id = user.get("unique_id") or user.get("UniqueId") or ""
+                nickname = user.get("nickname", "")
                 user_id = item.get("user_id", "")
-                userIDDict[str(short_id)] = {"nickname": nickname, "user_id": user_id}
+                info = {
+                    "nickname": nickname,
+                    "user_id": user_id,
+                    "short_id": str(short_id) if short_id else "",
+                    "unique_id": str(unique_id) if unique_id else "",
+                }
+                # 同时以 short_id 和 unique_id 作为索引，方便用任一标识匹配
+                if short_id:
+                    userIDDict[str(short_id)] = info
+                if unique_id:
+                    userIDDict[str(unique_id)] = info
         except Exception as e:
             tb = traceback.extract_tb(e.__traceback__)
             last = tb[-1]
@@ -125,20 +138,26 @@ def scroll_and_select_user(page, username, targets):
                 logger.debug(f"账号 {username} 找到好友 {targetName}")
                 # 检查是否是目标用户名
                 if matchMode == "short_id":
-                    targetSymbol = next((sid for sid, info in userIDDict.items() if info.get("nickname") == targetName), None)
+                    # 找到当前好友的信息，检查其 short_id / unique_id 是否在 targets 中
+                    info = next(
+                        (v for v in userIDDict.values() if v.get("nickname") == targetName),
+                        None,
+                    )
+                    targetSymbol = None
+                    if info:
+                        for key in ("short_id", "unique_id"):
+                            val = info.get(key, "")
+                            if val and val in targets:
+                                targetSymbol = val
+                                break
                 else:
                     targetSymbol = targetName
 
                 if targetSymbol in targets:
                     element.click()
-                    if matchMode == "short_id":
-                        logger.debug(
-                            f"账号 {username} 选中目标好友 {targetName} 准备开始交互"
-                        )
-                    else:
-                        logger.debug(
-                            f"账号 {username} 选中目标好友 {targetName} (ShortId: {targetSymbol}) 准备开始交互"
-                        )
+                    logger.info(
+                        f"账号 {username} 选中目标好友 {targetName} ({targetSymbol}) 准备开始交互"
+                    )
                     yield targetName
                     
                     # [修改] 标记已找到，如果全找到了直接退出
@@ -163,6 +182,10 @@ def scroll_and_select_user(page, username, targets):
             # 1. 检查是否到底（"没有更多了" —— 使用模糊类名匹配）
             if page.locator(no_more_selector).count() > 0:
                 logger.info(f"账号 {username} 检测到'没有更多了'标志，已到达底部")
+                logger.info(
+                    f"账号 {username} user_detail 接口共解析到 {len(userIDDict)} 条好友标识，"
+                    f"示例: {list(userIDDict.items())[:3]}"
+                )
                 if len(remaining_targets) > 0:
                     logger.warning(f"账号 {username} 搜索结束，仍有以下好友未找到: {remaining_targets}")
                 break
@@ -243,6 +266,33 @@ def do_user_task(browser, username, cookies, targets):
             delay=5,
             url="https://creator.douyin.com/creator-micro/data/following/chat",
         )
+
+        # 页面就绪检测：抖音对该页面有风控/不稳定，goto 成功不代表 SPA 渲染完成。
+        # 若好友标签页未出现，则重新加载重试，避免直接 wait_for_selector 干等 120s 后崩溃。
+        friends_tab_selector = 'xpath=//*[@id="sub-app"]/div/div/div[1]/div[2]'
+        login_hint_selector = 'xpath=//*[contains(text(),"登录") or contains(text(),"扫码")]'
+        ready_retries = config["taskRetryTimes"]
+        for attempt in range(ready_retries):
+            try:
+                page.wait_for_selector(friends_tab_selector, timeout=15000)
+                break
+            except Exception:
+                is_login = page.locator(login_hint_selector).count() > 0
+                if is_login:
+                    logger.error(
+                        f"账号 {username} 第 {attempt + 1}/{ready_retries} 次检测到登录/扫码页面，cookie 可能已失效"
+                    )
+                else:
+                    logger.warning(
+                        f"账号 {username} 第 {attempt + 1}/{ready_retries} 次未检测到好友标签页（页面未渲染，疑似风控），重新加载重试"
+                    )
+                if attempt < ready_retries - 1:
+                    time.sleep(3)
+                    page.reload()
+                else:
+                    logger.error(f"账号 {username} 消息页面多次重试仍未就绪，放弃该账号")
+                    context.close()
+                    return
 
         logger.debug(f"账号 {username} 开始发送消息")
         # 滚动并选择用户

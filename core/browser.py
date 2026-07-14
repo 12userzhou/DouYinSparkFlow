@@ -76,8 +76,13 @@ def get_browser():
     if system_chromium:
         launch_kwargs["executable_path"] = system_chromium
         print(f"[browser] 使用系统 chromium: {system_chromium}")
-        # arm64 / 受限内核环境下必须加这些参数，否则 chromium 启动崩溃
-        # 注意：--single-process 在 arm64 上反而会崩，不用
+    else:
+        print("[browser] 使用 Playwright 自带 chromium")
+
+    # arm64 / 受限内核环境下必须加这些参数，否则 chromium 启动崩溃
+    # 注意：--single-process 在 arm64 上反而会崩，不用
+    is_arm64 = os.uname().machine in ("aarch64", "arm64")
+    if is_arm64 or system_chromium:
         launch_kwargs["args"] = [
             "--no-sandbox",
             "--disable-setuid-sandbox",

@@ -66,13 +66,16 @@ def get_browser():
     if system_chromium:
         launch_kwargs["executable_path"] = system_chromium
         print(f"[browser] 使用系统 chromium: {system_chromium}")
-        # arm64 环境下必须加这些参数，否则 chromium 启动崩溃
+        # arm64 / 受限内核环境下必须加这些参数，否则 chromium 启动崩溃
+        # 注意：--single-process 在 arm64 上反而会崩，不用
         launch_kwargs["args"] = [
             "--no-sandbox",
             "--disable-setuid-sandbox",
             "--disable-dev-shm-usage",
             "--disable-gpu",
-            "--single-process",
+            "--disable-software-rasterizer",
+            "--no-zygote",
+            "--disable-features=VizDisplayCompositor,UseChromeOSDirectVideoDecoder",
         ]
 
     try:
@@ -88,3 +91,4 @@ def get_browser():
             sys.exit(1)
         else:
             traceback.print_exc()
+            raise  # 必须重新抛出，避免返回 None 导致调用方解包失败

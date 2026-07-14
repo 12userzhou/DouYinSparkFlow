@@ -80,16 +80,12 @@ def get_browser():
     headless = True
 
     env = get_environment()
+    # 注意：不再强制设置 PLAYWRIGHT_BROWSERS_PATH。
+    # arm64 环境下，设了这个变量会导致 Playwright 下载/查找完整版 chromium
+    # （需要 X server），而不是 headless_shell。用默认缓存路径更可靠。
     if env == Environment.LOCAL:
-        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), PLAYWRIGHT_BROWSERS_PATH)
-        )
         if DEBUG:
             headless = False
-    elif env == Environment.PACKED:
-        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.abspath(
-            os.path.join(os.path.dirname(sys.executable), PLAYWRIGHT_BROWSERS_PATH)
-        )
 
     # 优先用系统 chromium（arm64 等无 Playwright 预编译浏览器的环境）
     system_chromium = find_system_chromium()

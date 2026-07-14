@@ -94,7 +94,23 @@ def get_browser():
         launch_kwargs["executable_path"] = system_chromium
         print(f"[browser] 使用系统 chromium: {system_chromium}")
     else:
-        print("[browser] 使用 Playwright 自带 chromium")
+        # arm64 无 X server 环境下，必须显式指定 headless_shell 二进制，
+        # 否则 Playwright 可能用完整版 chromium（需要 X server）
+        import glob
+        headless_shell = None
+        for pattern in [
+            os.path.expanduser("~/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell"),
+            os.path.expanduser("~/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell"),
+        ]:
+            matches = sorted(glob.glob(pattern), reverse=True)
+            if matches:
+                headless_shell = matches[0]
+                break
+        if headless_shell:
+            launch_kwargs["executable_path"] = headless_shell
+            print(f"[browser] 使用 Playwright headless_shell: {headless_shell}")
+        else:
+            print("[browser] 使用 Playwright 自带 chromium")
 
     # arm64 / 受限内核环境下必须加这些参数，否则 chromium 启动崩溃
     # 注意：--single-process 在 arm64 上反而会崩，不用

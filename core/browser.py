@@ -9,6 +9,8 @@ PLAYWRIGHT_BROWSERS_PATH = "../chrome"
 
 # arm64/无网络环境下优先用系统 chromium
 SYSTEM_CHROMIUM_CANDIDATES = [
+    # snap chromium 真实二进制（绕过 snap confinement 的 cgroup 问题）
+    "/snap/chromium/current/usr/lib/chromium-browser/chrome",
     "/usr/bin/chromium-browser",
     "/usr/bin/chromium",
     "/usr/bin/google-chrome",
@@ -26,6 +28,14 @@ def find_system_chromium():
         found = shutil.which(name)
         if found:
             return found
+    # 扫 snap 版本目录（current 可能不存在，找具体版本号目录）
+    import glob
+    for pattern in [
+        "/snap/chromium/*/usr/lib/chromium-browser/chrome",
+    ]:
+        matches = sorted(glob.glob(pattern), reverse=True)
+        if matches:
+            return matches[0]
     return None
 
 

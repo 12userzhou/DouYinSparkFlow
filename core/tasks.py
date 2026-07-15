@@ -49,6 +49,9 @@ def handle_response(response: Response):
                 if unique_id:
                     userIDDict[str(unique_id)] = info
         except Exception as e:
+            # 浏览器关闭后接口仍在返回会触发 TargetClosedError，属于无害噪音，静默忽略
+            if "Target page, context or browser has been closed" in str(e) or "TargetClosedError" in type(e).__name__:
+                return
             tb = traceback.extract_tb(e.__traceback__)
             last = tb[-1]
             print(f"解析响应失败: {e}")

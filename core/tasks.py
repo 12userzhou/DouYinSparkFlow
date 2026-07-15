@@ -296,28 +296,54 @@ def do_user_task(browser, username, cookies, targets):
 
         logger.debug(f"账号 {username} 开始发送消息")
         # 滚动并选择用户
-        for username in scroll_and_select_user(page, username, targets):
-            logger.debug(f"账号 {username} 已选中好友 {username} 发送消息")
+        for friend_name in scroll_and_select_user(page, username, targets):
+            logger.info(f"账号 {username} 已选中好友 {friend_name}，准备发送消息")
             # 等待聊天输入框元素加载完成，使用更稳定的属性选择器
             chat_input_selector = "xpath=//div[contains(@class, 'chat-input-')]"
             page.wait_for_selector(chat_input_selector, timeout=config["browserTimeout"])
-            chat_input = page.locator(chat_input_selector)
+            chat_input = page.locator(chat_input_selector).first
 
             # 在 chat-input-dccKiL 中输入内容
             message = build_message()
+            logger.info(f"账号 {username} 准备输入消息给好友 {friend_name}：{repr(message)}")
+            # 先点击聚焦输入框
+            chat_input.click()
+            time.sleep(0.3)
             for line in message.split("\\n"):
-                chat_input.type(line)  # 输入每一行
+                chat_input.type(line, delay=50)  # 输入每一行，加延迟模拟真人
                 # 如果不是最后一行，模拟 Shift+Enter 插入换行
                 if line != message.split("\\n")[-1]:
                     chat_input.press("Shift+Enter")  # 模拟 Shift+Enter 插入换行
 
-            logger.debug(
-                f"账号 {username} 准备发送消息给好友 {username}：\n\t{message}"
-            )
-            logger.debug(f"账号 {username} 给好友 {username} 发送消息完成")
+            time.sleep(0.5)
+            # 读取输入框实际内容，确认文字真的输入进去了
+            input_text = chat_input.inner_text()
+            logger.info(f"账号 {username} 输入框实际内容：{repr(input_text)}")
+
             # 模拟按下回车键发送消息
             chat_input.press("Enter")
-            time.sleep(2)  # 发送完等待一会儿
+            time.sleep(1.5)
+            # 再次读取输入框内容，如果还有文字说明没发出去
+            after_text = chat_input.inner_text()
+            if after_text.strip():
+                logger.warning(f"账号 {username} 按回车后输入框仍有内容 {repr(after_text)}，尝试点击发送按钮")
+                # 尝试点击发送按钮兜底（多种选择器）
+                for send_sel in [
+                    "xpath=//div[contains(@class,'chat-input-')]/following::div[contains(text(),'发送')]",
+                    "xpath=//span[contains(text(),'发送')]",
+                    "xpath=//button[contains(text(),'发送')]",
+                    "xpath=//*[contains(@class,'send')]",
+                ]:
+                    try:
+                        if page.locator(send_sel).count() > 0:
+                            page.locator(send_sel).first.click()
+                            time.sleep(1)
+                            logger.info(f"账号 {username} 点击发送按钮成功: {send_sel}")
+                            break
+                    except Exception:
+                        continue
+            else:
+                logger.info(f"账号 {username} 给好友 {friend_name} 发送消息完成（输入框已清空）")
 
         context.close()  # 任务完成后关闭上下文
 

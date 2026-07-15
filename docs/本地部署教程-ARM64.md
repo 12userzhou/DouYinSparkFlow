@@ -27,6 +27,23 @@ git clone https://github.com/12userzhou/DouYinSparkFlow.git douyinsparkflow
 cd douyinsparkflow
 ```
 
+### 0.3 关闭 GitHub Action 定时（重要）
+
+> ⚠️ 本项目默认带 3 个 GitHub Actions 定时工作流（`schedule.yml` / `schedule_api.yml` / `schedule_dev.yml`），每天都会自动跑一次。既然改用本地 crontab 部署，**必须关掉 GitHub 这边的定时**，否则会：
+> - 和本地 crontab 重复发送消息，给好友连发两条
+> - GitHub Action 的出口 IP 是境外/共享 IP，容易触发抖音风控导致 cookie 失效
+
+仓库里的 3 个 workflow 已经把 `schedule:` 触发器注释掉了，只保留 `workflow_dispatch`（手动触发）。你只要 **把这次的修改 push 到 GitHub** 就生效：
+
+```bash
+git pull   # 如果是在新机器上 clone 的，先拉一下已经改好的 workflow
+git push origin main
+```
+
+push 后到 GitHub 仓库 → Actions 页面确认：不会再有定时任务自动触发，只有点 "Run workflow" 才会跑（作为本地挂了时的应急手段）。
+
+> 如果你想完全禁用（连手动都不让跑），可以在 Actions 页面把三个 workflow 都 disable；或在 workflow 文件顶部加一行 `disabled: true`。一般保留 `workflow_dispatch` 即可。
+
 ---
 
 ## 1. 一键部署环境
@@ -280,6 +297,20 @@ sudo snap remove chromium
 1. 确认 crond 服务在跑：`sudo systemctl status cron`
 2. 确认 venv 路径对：`ls /home/<用户名>/douyinsparkflow/venv/bin/python`
 3. 看日志：`tail -f /home/<用户名>/douyinsparkflow/logs/cron.log`
+
+### Q8：GitHub Action 还在定时跑，和本地 crontab 重复发送
+
+说明 workflow 里的 `schedule:` 触发器没注释掉，或者改了没 push。按本文档「0.3 关闭 GitHub Action 定时」处理。已改好的 workflow 应该长这样：
+
+```yaml
+on:
+  workflow_dispatch: # 允许手动触发
+  # 已改为本地 crontab 部署，禁用 GitHub Action 定时
+  # schedule: # 定时任务
+  #   - cron: "0 19 * * *"
+```
+
+push 后到 GitHub 仓库 → Actions 页面，确认没有自动触发的运行记录。
 
 ---
 

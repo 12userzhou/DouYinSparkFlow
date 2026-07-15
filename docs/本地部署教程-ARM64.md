@@ -33,25 +33,34 @@ cd douyinsparkflow
 > - 和本地 crontab 重复发送消息，给好友连发两条
 > - GitHub Action 的出口 IP 是境外/共享 IP，容易触发抖音风控导致 cookie 失效
 
-**做法**：把三个 workflow 文件里的 `schedule:` 触发器注释掉，commit 后 push 到 GitHub。这样定时的禁用状态就**固化进代码仓库**，自己或别人以后 clone 下来默认就是关的，不会再自动跑。
+**关键认知**：GitHub Actions 跑在 GitHub 自己的云服务器上，跟你本地设备完全无关。所以关掉它**不需要碰本地代码，不需要 git pull/push**，只要在 GitHub 网页上点一下就行。
 
-#### 第 1 步：编辑三个 workflow 文件
+#### 方式 A：GitHub UI 禁用（推荐，30 秒搞定）
 
-仓库里的三个文件已经按下面这种格式改好了，clone 下来就是关的状态。如果你是从原始仓库新 clone 的，需要手动改：
+不需要任何 git 操作，直接在网页上点：
 
-`.github/workflows/schedule.yml`：
+1. 打开 `https://github.com/<你的用户名>/DouYinSparkFlow/actions`
+2. 左侧列表依次点这三个 workflow：
+   - `DouYin Spark Flow Schedule Run`
+   - `【api（测试）分支】DouYin Spark Flow Schedule Run`
+   - `【dev（测试）分支】DouYin Spark Flow Schedule Run`
+3. 进每个 workflow 后，点右上角 **`...`** → **`Disable workflow`**
+
+禁用后定时和手动触发都会停止，本地 crontab 不受影响。**做完这一步就够了，下面的方式 B 可以跳过。**
+
+#### 方式 B：改 workflow 文件后 push（可选，需带 workflow scope 的 PAT）
+
+如果你想把"已禁用定时"的状态固化进代码仓库（方便别人 clone 下来默认就是关的），可以编辑三个 workflow 文件，把 `schedule:` 触发器注释掉：
+
 ```yaml
 on:
   workflow_dispatch: # 允许手动触发
-  # 已改为本地 crontab 部署，禁用 GitHub Action 定时，避免重复发送 + IP 风控
-  # 如需恢复，把下面两行取消注释即可
+  # 已改为本地 crontab 部署，禁用 GitHub Action 定时
   # schedule: # 定时任务
-  #   - cron: "0 19 * * *" # 每天 19:00 UTC（对应北京时间次日 3:00）
+  #   - cron: "0 19 * * *"
 ```
 
-`.github/workflows/schedule_api.yml` 和 `.github/workflows/schedule_dev.yml` 同理，把 `schedule:` 和 `- cron:` 两行注释掉。
-
-#### 第 2 步：提交并推送
+然后提交并推送：
 
 ```bash
 git add .github/workflows/
@@ -59,27 +68,11 @@ git commit -m "ci: 禁用 GitHub Actions 定时触发"
 git push origin main
 ```
 
-> ⚠️ **PAT 必须带 `workflow` scope**：GitHub 对 `.github/workflows/` 目录的改动有保护，要求 Personal Access Token 带 `workflow` scope，否则 push 会报：
-> ```
-> refusing to allow a Personal Access Token to create or update workflow
-> `.github/workflows/schedule.yml` without `workflow` scope
-> ```
-> 处理方法：
-> - **classic token**：去 https://github.com/settings/tokens → 编辑现有 token 或新建一个 → 勾上 `workflow` scope → 生成
-> - **fine-grained token**：token 设置里给 "Actions" 读写权限
->
-> 生成新 token 后，push 时把 URL 里的 token 换掉：
-> ```bash
-> git push https://<你的用户名>:<新token>@github.com/<你的用户名>/DouYinSparkFlow.git main
-> ```
+> ⚠️ 注意：push 含 `.github/workflows/` 的改动要求 PAT **带 `workflow` scope**，否则会报 `refusing to allow a Personal Access Token to create or update workflow ... without workflow scope`。去 https://github.com/settings/tokens 勾上 `workflow` scope 重新生成即可。不想折腾 token 的话，直接用方式 A，效果一样。
 
-#### 第 3 步：验证
+---
 
-push 成功后，到 GitHub 仓库 → Actions 页面确认：
-- 不会再有定时任务自动触发
-- workflow 列表里三个 workflow 显示 "disabled"（因为 `on:` 下只剩 `workflow_dispatch`，不会自动跑，但仍可手动 Run workflow 作为应急）
-
-本地 crontab 照常每天定点跑，互不干扰。
+**验证关闭成功**：到 GitHub 仓库 → Actions 页面，确认没有新的自动触发运行记录。本地 crontab 照常每天定点跑。
 
 ---
 
@@ -337,9 +330,9 @@ sudo snap remove chromium
 
 ### Q8：GitHub Action 还在定时跑，和本地 crontab 重复发送
 
-说明 workflow 文件里的 `schedule:` 触发器没注释掉，或者改了没 push 上去。按本文档「0.3 关闭 GitHub Action 定时」处理。
+说明 workflow 没被禁用。最快的解决办法是去 GitHub UI 直接禁用（不需要 git 操作），见本文档「0.3 关闭 GitHub Action 定时 → 方式 A」。
 
-如果 push 时报 `refusing to allow a Personal Access Token to create or update workflow ... without workflow scope`，说明你的 PAT 没 `workflow` scope，去 https://github.com/settings/tokens 勾上 `workflow` scope 重新生成一个 token 再推。
+如果走方式 B（改 workflow 文件 push），push 时报 `refusing to allow a Personal Access Token to create or update workflow ... without workflow scope`，说明你的 PAT 没 `workflow` scope，去 token 设置页勾上重新生成就行；不想折腾 token 的话直接用方式 A，效果一样。
 
 ---
 

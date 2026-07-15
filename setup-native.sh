@@ -1,6 +1,6 @@
 #!/bin/bash
 # DouYinSparkFlow 原生部署脚本（适用于 Ubuntu/Debian arm64 及 x86_64）
-# 不依赖 Docker，直接用系统 chromium + Python venv
+# 使用 Playwright 自带 chromium，不依赖系统 chromium
 set -e
 
 echo "=========================================="
@@ -14,66 +14,66 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 echo ""
-echo "[1/4] 安装系统依赖（chromium + Python venv）..."
+echo "[1/5] 安装系统依赖（Python venv + Playwright 运行库）..."
 $SUDO apt-get update -qq
 $SUDO apt-get install -y -qq \
-    chromium-browser \
     python3 \
     python3-venv \
     python3-pip \
+    curl \
+    libnspr4 \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
     >/dev/null 2>&1 || {
-    # chromium-browser 包装不上时试 chromium
-    echo "  chromium-browser 安装失败，尝试 chromium..."
-    $SUDO apt-get install -y -qq chromium >/dev/null 2>&1 || {
-        echo "  [错误] chromium 安装失败，请手动执行: sudo apt install chromium-browser"
-        exit 1
-    }
+    echo "  [警告] 部分系统依赖安装失败，可能需要手动补齐"
 }
 
-# 找 chromium 路径
-CHROMIUM_PATH=""
-for c in /usr/bin/chromium-browser /usr/bin/chromium /usr/bin/google-chrome; do
-    if [ -x "$c" ]; then
-        CHROMIUM_PATH="$c"
-        break
-    fi
-done
-if [ -z "$CHROMIUM_PATH" ]; then
-    echo "  [警告] 未找到 chromium 可执行文件，请确认安装成功"
-else
-    echo "  chromium 路径: $CHROMIUM_PATH"
-    $CHROMIUM_PATH --version 2>/dev/null || true
-fi
-
 echo ""
-echo "[2/4] 创建 Python 虚拟环境..."
+echo "[2/5] 创建 Python 虚拟环境..."
 cd "$(dirname "$0")"
-if [ ! -d "venv" ]; then
-    python3 -m venv venv
-fi
+# 部分 Ubuntu 22.04 系统的 venv 创建不完整（缺 activate/pip），用 --without-pip 兜底
+rm -rf venv
+python3 -m venv venv --without-pip
 source venv/bin/activate
+# 手动安装 pip
+curl -sS https://bootstrap.pypa.io/get-pip.py | python3
 
 echo ""
-echo "[3/4] 安装 Python 依赖..."
-pip install --upgrade pip -q
-pip install -r requirements.txt -q
+echo "[3/5] 安装 Python 依赖（使用阿里云镜像加速）..."
+pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 echo ""
-echo "[4/4] 安装 Playwright 系统依赖（chromium 运行所需的库）..."
-# 这一步只装系统库，不下载浏览器（我们用系统 chromium）
-playwright install-deps chromium >/dev/null 2>&1 || {
-    echo "  [提示] playwright install-deps 失败，但可能不影响（系统 chromium 自带依赖）"
-}
+echo "[4/5] 下载 Playwright chromium（使用官方 CDN）..."
+# 国内环境用官方 azureedge CDN 最稳定，npmmirror 缺 arm64 headless_shell
+PLAYWRIGHT_DOWNLOAD_HOST=https://playwright.azureedge.net playwright install chromium
+
+echo ""
+echo "[5/5] 创建日志目录..."
+mkdir -p logs
 
 echo ""
 echo "=========================================="
 echo "  部署完成！"
 echo "=========================================="
 echo ""
-echo "使用方法："
-echo "  1. 确认 .env 已创建（参考 .env.example）"
+echo "下一步："
+echo "  1. 创建 .env 配置文件（参考下方说明或 .env.example）"
 echo "  2. 立即运行一次："
-echo "     cd $(pwd) && source venv/bin/activate && python main.py"
-echo "  3. 设置定时任务（每天 9:00 运行）："
-echo "     (crontab -l 2>/dev/null; echo '0 9 * * * cd $(pwd) && source venv/bin/activate && python main.py >> logs/cron.log 2>&1') | crontab -"
+echo "     cd $(pwd) && source venv/bin/activate && python -u main.py"
+echo "  3. 设置定时任务（每天 4:00 运行）："
+echo "     (crontab -l 2>/dev/null | grep -v douyinsparkflow; echo '0 4 * * * cd $(pwd) && $(pwd)/venv/bin/python main.py >> $(pwd)/logs/cron.log 2>&1') | crontab -"
+echo ""
+echo "后续更新 cookie："
+echo "  bash update_cookie.sh   # 交互式更新 .env 中的 cookie"
 echo ""

@@ -33,16 +33,48 @@ cd douyinsparkflow
 > - 和本地 crontab 重复发送消息，给好友连发两条
 > - GitHub Action 的出口 IP 是境外/共享 IP，容易触发抖音风控导致 cookie 失效
 
-仓库里的 3 个 workflow 已经把 `schedule:` 触发器注释掉了，只保留 `workflow_dispatch`（手动触发）。你只要 **把这次的修改 push 到 GitHub** 就生效：
+#### 方式 A：GitHub UI 禁用（推荐，最直接，立即生效）
+
+不需要任何 git 操作，直接在网页上点：
+
+1. 打开 `https://github.com/<你的用户名>/DouYinSparkFlow/actions`
+2. 左侧列表依次点这三个 workflow：
+   - `DouYin Spark Flow Schedule Run`
+   - `【api（测试）分支】DouYin Spark Flow Schedule Run`
+   - `【dev（测试）分支】DouYin Spark Flow Schedule Run`
+3. 进每个 workflow 后，点右上角 **`...`** → **`Disable workflow`**
+
+禁用后定时和手动触发都会停止，本地 crontab 不受影响。**做完这一步就够了，下面的方式 B 可以跳过。**
+
+#### 方式 B：改 workflow 文件后 push（可选）
+
+如果想把"已禁用定时"的状态也存进代码仓库（方便以后在新机器 clone 下来就是禁用状态），可以编辑三个 workflow 文件，把 `schedule:` 触发器注释掉：
+
+```yaml
+on:
+  workflow_dispatch: # 允许手动触发
+  # 已改为本地 crontab 部署，禁用 GitHub Action 定时
+  # schedule: # 定时任务
+  #   - cron: "0 19 * * * *"
+```
+
+然后提交并推送：
 
 ```bash
-git pull   # 如果是在新机器上 clone 的，先拉一下已经改好的 workflow
+git add .github/workflows/
+git commit -m "ci: 禁用 GitHub Actions 定时触发"
 git push origin main
 ```
 
-push 后到 GitHub 仓库 → Actions 页面确认：不会再有定时任务自动触发，只有点 "Run workflow" 才会跑（作为本地挂了时的应急手段）。
+> ⚠️ 注意：push 含 `.github/workflows/` 的改动要求你用的 GitHub Personal Access Token **带 `workflow` scope**，否则会报 `refusing to allow a Personal Access Token to create or update workflow ... without workflow scope`。
+> - classic token：去 https://github.com/settings/tokens 编辑 token，勾上 `workflow` scope 重新生成
+> - fine-grained token：在 token 设置里给 "Actions" 权限
+>
+> 如果不想折腾 token，直接用方式 A 即可，效果一样。
 
-> 如果你想完全禁用（连手动都不让跑），可以在 Actions 页面把三个 workflow 都 disable；或在 workflow 文件顶部加一行 `disabled: true`。一般保留 `workflow_dispatch` 即可。
+---
+
+**验证关闭成功**：到 GitHub 仓库 → Actions 页面，确认没有新的自动触发运行记录（之前的历史运行记录会保留，不影响）。本地 crontab 照常每天定点跑。
 
 ---
 
@@ -300,17 +332,9 @@ sudo snap remove chromium
 
 ### Q8：GitHub Action 还在定时跑，和本地 crontab 重复发送
 
-说明 workflow 里的 `schedule:` 触发器没注释掉，或者改了没 push。按本文档「0.3 关闭 GitHub Action 定时」处理。已改好的 workflow 应该长这样：
+说明 workflow 没被禁用。最快的解决办法是去 GitHub UI 直接禁用（不需要 git 操作），见本文档「0.3 关闭 GitHub Action 定时 → 方式 A」。
 
-```yaml
-on:
-  workflow_dispatch: # 允许手动触发
-  # 已改为本地 crontab 部署，禁用 GitHub Action 定时
-  # schedule: # 定时任务
-  #   - cron: "0 19 * * *"
-```
-
-push 后到 GitHub 仓库 → Actions 页面，确认没有自动触发的运行记录。
+如果走方式 B（改 workflow 文件 push），push 时报 `refusing to allow a Personal Access Token to create or update workflow ... without workflow scope`，说明你的 PAT 没 `workflow` scope，去 token 设置页勾上重新生成就行；不想折腾 token 的话直接用方式 A，效果一样。
 
 ---
 

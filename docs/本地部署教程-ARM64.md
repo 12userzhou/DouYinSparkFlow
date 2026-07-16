@@ -130,7 +130,7 @@ LOG_LEVEL=INFO
 # ===== 任务列表 =====
 # username 是备注名（日志里用）；unique_id 用于关联下面的 COOKIES_<UNIQUE_ID 大写>
 # targets 里填好友的【抖音号 unique_id】或【纯数字 short_id】，两种都能匹配
-TASKS=[{"username":"你的账号备注名","unique_id":"u1","targets":["好友抖音号C","好友抖音号D","好友抖音号A","好友抖音号B","好友抖音号M"]}]
+TASKS=[{"username":"你的账号备注名","unique_id":"u1","targets":["好友抖音号1","好友抖音号2"]}]
 
 # ===== Cookie =====
 # 从浏览器开发者工具导出的 Cookie JSON 数组（数组里每个对象要有 name/value/domain/path）
@@ -142,7 +142,7 @@ COOKIES_U1=[{"name":"sessionid","value":"替换成真实值","domain":".douyin.c
 在抖音 APP 里点开好友主页 → 右上角分享 → 复制链接，链接里的 `u/` 后面那段就是抖音号。
 也可以让对方报给你，或者看对方主页的「抖音号：xxx」一栏。
 
-> ⚠️ 抖音号末尾如果有英文句号 `.`，**必须保留**（比如 `好友抖音号B`），否则匹配不上。
+> ⚠️ 抖音号末尾如果有英文句号 `.`，**必须保留**（比如某些抖音号是 `xxx.` 结尾），否则匹配不上。
 
 ### 2.2 怎么导出 Cookie
 
@@ -167,15 +167,15 @@ python -u main.py 2>&1 | tee /tmp/run.log
 看到这样的日志说明发送成功：
 
 ```
-[browser] 使用 Playwright headless_shell: /home/<用户名>/.cache/ms-playwright/chromium_headless_shell-1208/chrome-linux/headless_shell
+[browser] 使用 Playwright headless_shell: /home/<用户名>/.cache/ms-playwright/chromium_headless_shell-<版本号>/chrome-linux/headless_shell
 INFO - 开始执行任务
 INFO - 开始处理账号 你的账号备注名
-INFO - 监听到 user_detail 接口响应，user_list 共 15 条
-INFO - 选中目标好友 槐序 (好友抖音号C) 准备开始交互
-INFO - 已选中好友 槐序，准备发送消息
-INFO - 准备输入消息给好友 槐序：'早上好'
+INFO - 监听到 user_detail 接口响应，user_list 共 N 条
+INFO - 选中目标好友 好友昵称 (好友抖音号) 准备开始交互
+INFO - 已选中好友 好友昵称，准备发送消息
+INFO - 准备输入消息给好友 好友昵称：'早上好'
 INFO - 输入框实际内容：'早上好'
-INFO - 给好友 槐序 发送消息完成（输入框已清空）
+INFO - 给好友 好友昵称 发送消息完成（输入框已清空）
 ...
 INFO - 任务完成
 ```
@@ -252,7 +252,7 @@ sed -i 's|^MESSAGE_TEMPLATE=.*|MESSAGE_TEMPLATE=晚安|' .env
 cd ~/douyinsparkflow
 # 整行替换 TASKS=
 # 注意 targets 里的抖音号结尾如果有 . 必须保留
-sed -i 's|^TASKS=.*|TASKS=[{"username":"你的账号备注名","unique_id":"u1","targets":["好友抖音号A","好友抖音号B"]}]|' .env
+sed -i 's|^TASKS=.*|TASKS=[{"username":"你的账号备注名","unique_id":"u1","targets":["好友抖音号1","好友抖音号2"]}]|' .env
 ```
 
 ### 4.5 查看日志

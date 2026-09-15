@@ -37,6 +37,11 @@ def handle_response(response: Response):
                 unique_id = user.get("unique_id") or user.get("UniqueId") or ""
                 nickname = user.get("nickname", "")
                 user_id = item.get("user_id", "")
+                # 打印接口实际返回的标识，方便排查"抖音号一直匹配不上"的问题
+                # （1/I/l 这类视觉混淆字符肉眼无法分辨，必须以接口返回为准）
+                logger.debug(
+                    f"接口返回好友: nickname={nickname}, unique_id={unique_id}, short_id={short_id}"
+                )
                 info = {
                     "nickname": nickname,
                     "user_id": user_id,

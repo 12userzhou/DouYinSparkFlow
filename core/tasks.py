@@ -141,9 +141,7 @@ def scroll_and_select_user(page, username, targets):
 
                 if targetName in found_targets:
                     continue  # 已处理过，跳过
-                found_targets.add(targetName)
 
-                logger.debug(f"账号 {username} 找到好友 {targetName}")
                 # 检查是否是目标用户名
                 if matchMode == "short_id":
                     # 找到当前好友的信息，检查其 short_id / unique_id 是否在 targets 中
@@ -151,14 +149,24 @@ def scroll_and_select_user(page, username, targets):
                         (v for v in userIDDict.values() if v.get("nickname") == targetName),
                         None,
                     )
+                    if info is None:
+                        # [修复竞态] 列表元素已渲染但 ID 接口响应还没到，
+                        # 不标记为已处理，下一轮循环重查（否则该好友会被永久跳过）
+                        continue
+                    found_targets.add(targetName)
+                    logger.debug(
+                        f"账号 {username} 找到好友 {targetName} "
+                        f"(short_id={info.get('short_id')}, unique_id={info.get('unique_id')})"
+                    )
                     targetSymbol = None
-                    if info:
-                        for key in ("short_id", "unique_id"):
-                            val = info.get(key, "")
-                            if val and val in targets:
-                                targetSymbol = val
-                                break
+                    for key in ("short_id", "unique_id"):
+                        val = info.get(key, "")
+                        if val and val in targets:
+                            targetSymbol = val
+                            break
                 else:
+                    found_targets.add(targetName)
+                    logger.debug(f"账号 {username} 找到好友 {targetName}")
                     targetSymbol = targetName
 
                 if targetSymbol in targets:

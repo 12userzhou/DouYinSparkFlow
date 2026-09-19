@@ -1,4 +1,5 @@
 import traceback
+import re
 from utils.logger import setup_logger
 from utils.config import get_config, get_userData
 from core.msg_builder import build_message, build_message_with_openai
@@ -144,9 +145,19 @@ def scroll_and_select_user(page, username, targets):
 
                 # 检查是否是目标用户名
                 if matchMode == "short_id":
-                    # 找到当前好友的信息，检查其 short_id / unique_id 是否在 targets 中
+                    # [修复] 昵称里含零宽字符（\u200b/\u200c/\u200d/\ufeff）时，
+                    # DOM inner_text 和接口返回的 nickname 可能字节级不一致，
+                    # 先剥除所有零宽字符再比对，避免匹配失败导致好友被永久跳过
+                    def _strip_invisible(s):
+                        return re.sub(r"[\u200b\u200c\u200d\ufeff]", "", s or "").strip()
+
+                    stripped_name = _strip_invisible(targetName)
                     info = next(
-                        (v for v in userIDDict.values() if v.get("nickname") == targetName),
+                        (
+                            v for v in userIDDict.values()
+                            if _strip_invisible(v.get("nickname", "")) == stripped_name
+                            or v.get("nickname", "") == targetName
+                        ),
                         None,
                     )
                     if info is None:

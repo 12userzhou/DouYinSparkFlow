@@ -36,19 +36,23 @@ def setup_logger(name="app", level="Info"):
     if not logger.handlers:
         # 控制台日志处理器
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(level)
         console_formatter = logging.Formatter(LOG_FORMAT)
         console_handler.setFormatter(console_formatter)
 
         # 文件日志处理器（带日志轮转）
         file_handler = RotatingFileHandler(LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
-        file_handler.setLevel(level)
         file_formatter = logging.Formatter(LOG_FORMAT)
         file_handler.setFormatter(file_formatter)
 
         # 添加处理器到日志记录器
         logger.addHandler(console_handler)
         logger.addHandler(file_handler)
+
+    # [修复] 每次 setup_logger 被调用时都同步更新所有 handler 的级别，
+    # 否则被 config.py 提前初始化后，tasks.py 想把级别调成 DEBUG 也不生效，
+    # 导致 DEBUG 级日志（如 "接口返回好友"）被 INFO handler 过滤掉
+    for h in logger.handlers:
+        h.setLevel(level)
 
     return logger
 
